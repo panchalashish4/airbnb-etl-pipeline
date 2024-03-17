@@ -1,44 +1,31 @@
+import boto3
 import json
-from datetime import datetime
 
+s3_client = boto3.client('s3')
+sns_client = boto3.client('sns')
 
 def lambda_handler(event, context):
-    """Lambda function to process event and return message with duration."""
+    # TODO implement
+    print(event)
+    body = event[0]["body"]
+    print(body)
 
-    print("Event: ", event)
-    # Get the message body from the event
-    body = json.loads(event[0]["body"])
+    # Create a temporary filename
+    output_file = f"/tmp/filtered_data_{body["bookingId"]}"
 
-    # Extract start and end dates from the message
-    start_date_str = body.get("startDate")
-    end_date_str = body.get("endDate")
+    # Write filtered data to temporary file
+    with open(output_file, 'w') as f:
+        json.dump([body], f, indent=4)
 
-    # Check if both dates are present
-    if not start_date_str or not end_date_str:
-        return {
-            "statusCode": 400,
-            "body": "Missing start or end date in message."
-        }
+    # Upload filtered data to the target S3 bucket
+    target_bucket_name = "doordash-target-zn-assign3"  # Replace with your target bucket name
+    s3_client.upload_file(output_file, target_bucket_name,
+                          f"filtered_airbnb/filtered_{body["bookingId"]}")  # Upload to a subfolder "filtered"
 
-    # Try converting dates to datetime objects
-    try:
-        start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-        end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
-    except ValueError:
-        return {
-            "statusCode": 400,
-            "body": "Invalid date format. Use YYYY-MM-DD."
-        }
+    print(
+        f"Filtered data written to {output_file} and uploaded to S3 bucket: {target_bucket_name}/filtered_airbnb/{body["bookingId"]}")
 
-    # Calculate duration in days
-    duration = (end_date - start_date).days
-
-    response_data = {**body, "duration": duration}
-
-    # Return message only if duration is greater than 1
-    if duration > 1:
-        print("Response Data: ", response_data)
-        return {
-            "statusCode": 200,
-            "body": response_data
-        }
+    return {
+        'statusCode': 200,
+        'body': json.dumps(f'File uploaded to S3 bucket: {target_bucket_name}/filtered_airbnb/{body["bookingId"]}')
+    }
